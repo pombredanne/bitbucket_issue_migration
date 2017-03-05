@@ -1,38 +1,108 @@
-# bitbucket Issues Migration
+# Bitbucket Issues Migration
 
-This is a small script that will migrate bitbucket issues to a github project.
-It will use the bitbucket api to pull out the issues and comments.
+This is a small script that will migrate Bitbucket issues to a GitHub project.
 
-It will import issues (and close them as needed) and their comments. Labels and
-milestones are not supported at the moment.
+It will import issues (and close them as needed) and their comments.
+Repositories can be public or private, owned by individuals or organizations.
+Labels and milestones are supported.
 
-## Before running
+## Before running:
 
-You will need to install the requirements first
+Requires Python 3 and the [requests](http://requests.readthedocs.org/) library.
+[keyring](https://pypi.python.org/pypi/keyring) is an optional
+dependency if you want to pull login credentials from the system keyring.
 
-    pip install -r requirements.pip
+It's probably easiest to install the dependencies using Python 3's built-in
+`venv` tool:
 
-## Example
-    
-    python migrate.py -h
-    Usage: migrate.py [options]
-    
-    Options:
+    $ pyvenv ./py3
+    $ source ./py3/bin/activate
+    $ pip3 install -r requirements.pip
+
+## Parameters:
+
+    $ python3 migrate.py -h
+    usage: migrate.py [-h] [-bu BITBUCKET_USERNAME] [-n] [-f START]
+                      bitbucket_repo github_repo github_username
+
+    A tool to migrate issues from Bitbucket to GitHub.
+
+    positional arguments:
+      bitbucket_repo        Bitbucket repository to pull issues from.
+                            Format: <user or organization name>/<repo name>
+                            Example: jeffwidman/bitbucket-issue-migration
+
+      github_repo           GitHub repository to add issues to.
+                            Format: <user or organization name>/<repo name>
+                            Example: jeffwidman/bitbucket-issue-migration
+
+      github_username       Your GitHub username. This is used only for
+                            authentication, not for the repository location.
+
+    optional arguments:
       -h, --help            show this help message and exit
-      -t, --dry-run         Preform a dry run and print eveything.
-      -g GITHUB_USERNAME, --github-username=GITHUB_USERNAME
-                            GitHub username
-      -d GITHUB_REPO, --github_repo=GITHUB_REPO
-                            GitHub to add issues to. Format: <username>/<repo
-                            name>
-      -s BITBUCKET_REPO, --bitbucket_repo=BITBUCKET_REPO
-                            Bitbucket repo to pull data from.
-      -u BITBUCKET_USERNAME, --bitbucket_username=BITBUCKET_USERNAME
-                            Bitbucket username
-      -f START, --start=START
-                            Bitbucket id of the issue to start import (1 means you want all the issues)                       
 
-    python migrate.py -g <githbu_user> -d <github_repo> -s <bitbucket_repo> -u <bitbucket_usename> -f 1
+      -bu BITBUCKET_USERNAME, --bb_user BITBUCKET_USERNAME
+                            Your Bitbucket username. This is only necessary when
+                            migrating private Bitbucket repositories.
 
-Note: if you need to migrate to a GitHub organizational repository, use your personal username,
-but the appropriate API token for the repository.
+      -n, --dry_run         Perform a dry run and print everything.
+
+      -f START, --start START
+                            The list index of the Bitbucket issue from which to
+                            start the import. Note: Normally this matches the
+                            issue ID minus one (to account for zero-based
+                            indexing). However, if issues were deleted in the
+                            past from the BB repo, the list index of the issue
+                            will decrease due to the missing issues without a
+                            corresponding decrease in the issue ID.
+
+    $ python3 migrate.py <bitbucket_repo> <github_repo> <github_username>
+
+## Example:
+
+For example, to export the SQLAlchemy issue tracker to the repo https://github.com/jeffwidman/testing:
+
+    $ python3 migrate.py zzzeek/sqlalchemy jeffwidman/testing jeffwidman
+
+## Additional notes:
+
+* GitHub labels are created that map to the Bitbucket issue's priority, kind
+(bug, task, etc), component (if any, custom to each project), and version (if
+any). If you don't want these, just delete the new GitHub labels post-migration.
+
+* Milestones are currently imported as labels. However, it is possible to
+import them straight across: Bitbucket's API exposes the milestone title via
+`issue['metadata']['milestone']` and GitHub's Issue Import API supports
+attaching a milestone ID at `issue['milestone']`. PRs are gladly accepted that
+implement functionality to programatically retrieve/create GH milestone IDs
+for BB milestone titles. Note that GitHub requires that the milestone already
+exist before attaching it to an issue, otherwise the issue import will be
+rejected.
+
+* The migrated issues and issue comments are annotated with both Bitbucket and
+GitHub links to user who authored the comment/issue. This assumes the user
+reused their Bitbucket username on GitHub.
+
+* Within the body of issues and issue comments, hyperlinks to other issues
+in this Bitbucket repo will be rewritten as `#<ID>`, which GitHub will
+automatically hyperlink to the GitHub issue with that particular ID. This
+assumes that you are migrating to a GitHub repository that has no existing
+issues, otherwise the imported issues will have a different ID on GitHub than
+on Bitbucket and the links will be incorrect. If you are migrating to a GitHub
+repo with existing issues, just edit the code to offset the imported issue IDs
+by the correct amount.
+
+* This script is not idempotent--re-running it will leave the first set of
+imported issues intact, and then create a duplicate set of imported issues after
+the first set. If you want to re-run the import, it's best to delete your GitHub
+repo and start over so that the GitHub issue IDs start from 1.
+
+* The maximum allowable size per individual issue is 1MB. This limit is
+imposed by GitHub's
+[Import API](https://gist.github.com/jonmagic/5282384165e0f86ef105).
+
+
+
+Currently maintained by [Jeff Widman](http://www.jeffwidman.com/).
+Originally written and open-sourced by [Vitaly Babiy](http://www.howsthe.com/).
